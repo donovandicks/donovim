@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 use termion::color;
 use termion::event::Key;
 
-const STATUS_FG_COLOR: color::Rgb = color::Rgb(63, 63, 63);
-const STATUS_BG_COLOR: color::Rgb = color::Rgb(239, 239, 239);
+const STATUS_FG_COLOR: color::Rgb = color::Rgb(239, 239, 239);
+const STATUS_BG_COLOR: color::Rgb = color::Rgb(120, 120, 120);
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /**
@@ -202,6 +202,10 @@ impl Editor {
         match command {
             "w" => self.save(),
             "q" => self.should_quit = true,
+            "wq" => {
+                self.save();
+                self.should_quit = true;
+            }
             _ => self.status_message = StatusMessage::from(format!("Unrecognized Command: {:?}", command)),
         }
     }
@@ -220,6 +224,11 @@ impl Editor {
             'k' => self.move_cursor(Key::Up),
             'h' => self.move_cursor(Key::Left),
             'l' => self.move_cursor(Key::Right),
+            'o' => {
+                self.move_cursor(Key::Down);
+                self.document.insert(&self.cursor_position, '\n');
+                self.mode = Mode::INSERT;
+            }
             ':' => self.process_command(),
             _ => (),
         }

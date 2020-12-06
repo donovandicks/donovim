@@ -11,8 +11,15 @@ const STATUS_BG_COLOR: color::Rgb = color::Rgb(239, 239, 239);
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /**
- * Position
- *
+ * List of Editor Modes
+ */
+#[derive(PartialEq, Debug)]
+enum Mode {
+    NORMAL,
+    INSERT,
+}
+
+/**
  * Holds cursor x and y position for the current document
  */
 #[derive(Default)]
@@ -27,6 +34,9 @@ struct StatusMessage {
 }
 
 impl StatusMessage {
+    /**
+     * Implement fromString for StatusMessage
+     */
     fn from(message: String) -> Self {
         Self {
             time: Instant::now(),
@@ -36,8 +46,6 @@ impl StatusMessage {
 }
 
 /**
- * Editor
- *
  * Holds values for the current editor instance
  */
 pub struct Editor {
@@ -47,6 +55,7 @@ pub struct Editor {
     offset: Position,
     document: Document,
     status_message: StatusMessage,
+    mode: Mode,
 }
 
 impl Editor {
@@ -55,7 +64,7 @@ impl Editor {
      */
     pub fn default() -> Self {
         let args: Vec<String> = env::args().collect();
-        let mut initial_status: String = String::from("HELP: Ctrl-S = save | Ctrl-Q = quit");
+        let mut initial_status: String = String::from("HELP: :w = Save | :q = Quit");
         let document: Document = if args.len() > 1 {
             let file_name: &String = &args[1];
             let doc: Result<Document, std::io::Error> = Document::open(&file_name);
@@ -75,6 +84,7 @@ impl Editor {
             cursor_position: Position::default(),
             offset: Position::default(),
             status_message: StatusMessage::from(initial_status),
+            mode: Mode::NORMAL,
         }
     }
 
@@ -133,7 +143,7 @@ impl Editor {
         let mut status: String;
         let width: usize = self.terminal.size().width as usize;
         let modified_indicator = if self.document.is_dirty() {
-            " (modified)"
+            " (modified) "
         } else {
             ""
         };
@@ -144,10 +154,11 @@ impl Editor {
         }
 
         status = format!(
-            "{} - {} lines{}", 
+            "{} - {} lines{}- {:?}", 
             file_name, 
             self.document.len(),
-            modified_indicator
+            modified_indicator,
+            self.mode,
         );
 
         let line_indicator: String = format!(
@@ -183,20 +194,62 @@ impl Editor {
     }
 
     /**
+     * Handle given command from :
+     */
+    fn process_command(&mut self) {
+        let command: Option<String> = self.prompt(":").unwrap_or(None);
+        let command: &str = command.as_ref().map(String::as_ref).unwrap();
+        match command {
+            "w" => self.save(),
+            "q" => self.should_quit = true,
+            _ => self.status_message = StatusMessage::from(format!("Unrecognized Command: {:?}", command)),
+        }
+    }
+
+    /**
+     * Handles Keypresses in NORMAL mode
+     */
+    fn process_normal_keypress(&mut self, c: char) {
+        match c {
+            'a' => {
+                self.move_cursor(Key::Right);
+                self.mode = Mode::INSERT;
+            }
+            'i' => self.mode = Mode::INSERT,
+            'j' => self.move_cursor(Key::Down),
+            'k' => self.move_cursor(Key::Up),
+            'h' => self.move_cursor(Key::Left),
+            'l' => self.move_cursor(Key::Right),
+            ':' => self.process_command(),
+            _ => (),
+        }
+    }
+
+    /**
+     * Handles Keypresses in INSERT mode
+     */
+    fn process_insert_keypress(&mut self, c: char) {
+        self.document.insert(&self.cursor_position, c);
+        if c == '\n' {
+            self.move_cursor(Key::Down);
+        } else {
+            self.move_cursor(Key::Right);
+        }
+    }
+
+    /**
      * Reads a key, propogates error if one is returned
      * Sets should_quit if CTRL-Q
      */
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
         let pressed_key: Key = Terminal::read_key()?;
         match pressed_key {
-            Key::Ctrl('q') => self.should_quit = true,
-            Key::Ctrl('s') => self.save(),
+            Key::Esc => self.mode = Mode::NORMAL,
             Key::Char(c) => {
-                self.document.insert(&self.cursor_position, c);
-                if c == '\n' {
-                    self.move_cursor(Key::Down);
+                if self.mode == Mode::INSERT {
+                    self.process_insert_keypress(c);
                 } else {
-                    self.move_cursor(Key::Right);
+                    self.process_normal_keypress(c);
                 }
             }
             Key::Delete => self.document.delete(&self.cursor_position),

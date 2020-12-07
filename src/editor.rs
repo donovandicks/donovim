@@ -193,6 +193,7 @@ impl Editor {
         }
     }
 
+
     /**
      * Handle given command from :
      */
@@ -201,7 +202,15 @@ impl Editor {
         let command: &str = command.as_ref().map(String::as_ref).unwrap();
         match command {
             "w" => self.save(),
-            "q" => self.should_quit = true,
+            "q" => {
+                if self.document.is_dirty() {
+                    self.status_message = StatusMessage::from(
+                        "Document has unsaved changes! Add ! to override.".to_string());
+                    return;
+                }
+                self.should_quit = true;
+            }
+            "q!" => self.should_quit = true,
             "wq" => {
                 self.save();
                 self.should_quit = true;

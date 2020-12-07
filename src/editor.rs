@@ -28,6 +28,9 @@ pub struct Position {
     pub y: usize,
 }
 
+/**
+ * Holds message for the current editor status
+ */
 struct StatusMessage {
     text: String,
     time: Instant,

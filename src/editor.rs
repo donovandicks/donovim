@@ -245,14 +245,14 @@ impl Editor {
                 self.mode = Mode::INSERT;
             }
             'n' => {
-                if self.search_results.len() > 0 {
-                    self.cursor_position = self
-                        .search_results
-                        .iter()
-                        .find(|&pos| pos.y > self.cursor_position.y)
-                        .unwrap()
-                        .clone();
-                }
+                if let Some(new_pos) = self.search_results.iter().find(|&pos| pos.y > self.cursor_position.y) {
+                    self.cursor_position = new_pos.clone();
+                };
+            }
+            'N' => {
+                if let Some(new_pos) = self.search_results.iter().rfind(|&pos| pos.y < self.cursor_position.y) {
+                    self.cursor_position = new_pos.clone();
+                };
             }
             // 'N' => {
             //     if self.search_results.len() > 0 {

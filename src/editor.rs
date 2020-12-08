@@ -385,7 +385,7 @@ impl Editor {
         if let Some(query) = self.prompt("/", |editor, key, query| {
             let mut moved: bool = false;
             match key {
-                Key::Char('n') => {
+                Key::Right => {
                     editor.move_cursor(Key::Right);
                     moved = true;
                 }

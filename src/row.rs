@@ -64,6 +64,34 @@ impl Row {
         self.string = result;
     }
 
+    pub fn peek_white(&self, at: usize) -> usize {
+        let mut idx: usize = 0;
+        for (index, c) in self.string[..].chars().enumerate() {
+            if index < at {
+                continue;
+            }
+            if !c.is_alphanumeric() {
+                idx = index + 1;
+                break;
+            } 
+        }
+        idx
+    }
+
+    pub fn peek_alpha(&self, at: usize) -> usize {
+        let mut idx: usize = 0;
+        for (index, c) in self.string[..].chars().enumerate() {
+            if index < at {
+                continue;
+            }
+            if c.is_alphabetic() {
+                idx = index;
+                break;
+            }
+        }
+        idx
+    }
+
     /**
      * Remove grapheme under the cursor
      */
@@ -81,13 +109,6 @@ impl Row {
         }
         self.len = length;
         self.string = result;
-    }
-
-    /**
-     * Convert row to bytes
-     */
-    pub fn as_bytes(&self) -> &[u8] {
-        self.string.as_bytes()
     }
 
     /**
@@ -123,6 +144,11 @@ impl Row {
         self.string = format!("{}{}", self.string, new.string);
         self.len += new.len;
     }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.string.as_bytes()
+    }
+
 
     pub fn len(&self) -> usize {
         self.len

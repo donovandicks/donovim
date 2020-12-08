@@ -114,90 +114,13 @@ impl Editor {
                 error(err);
             }
             if self.should_quit {
+                // self.cursor_position = Position { x: 1, y: 1 };
+                self.draw_rows();
+                Terminal::clear_screen();
                 break;
             }
         }
     }
-
-    /**
-     * Clears the screen by writing an escape sequence to the terminal
-     */
-    fn refresh_screen(&self) -> Result<(), std::io::Error> {
-        Terminal::cursor_hide();
-        Terminal::cursor_position(&Position::default());
-        if self.should_quit {
-            Terminal::clear_screen();
-            println!("Goodbye.\r");
-        } else {
-            self.draw_rows();
-            self.draw_status_bar();
-            self.draw_message_bar();
-            Terminal::cursor_position(&Position {
-                x: self.cursor_position.x.saturating_sub(self.offset.x),
-                y: self.cursor_position.y.saturating_sub(self.offset.y),
-            });
-        }
-        Terminal::cursor_show();
-        Terminal::flush()
-    }
-
-    /**
-     * Draw bar for status data
-     */
-    fn draw_status_bar(&self) {
-        let mut status: String;
-        let width: usize = self.terminal.size().width as usize;
-        let modified_indicator = if self.document.is_dirty() {
-            " (modified) "
-        } else {
-            ""
-        };
-        let mut file_name: String = "[No Name]".to_string();
-        if let Some(name) = &self.document.file_name {
-            file_name = name.clone();
-            file_name.truncate(20);
-        }
-
-        status = format!(
-            "{} - {} lines{}- {:?}", 
-            file_name, 
-            self.document.len(),
-            modified_indicator,
-            self.mode,
-        );
-
-        let line_indicator: String = format!(
-            "{}/{}",
-            self.cursor_position.y.saturating_add(1),
-            self.document.len()
-        );
-        let len: usize = status.len() + line_indicator.len();
-        if width > len {
-            status.push_str(&" ".repeat(width - len));
-        }
-        status = format!("{}{}", status, line_indicator);
-
-        status.truncate(width);
-        Terminal::set_bg_color(STATUS_BG_COLOR);
-        Terminal::set_fg_color(STATUS_FG_COLOR);
-        println!("{}\r", status);
-        Terminal::reset_bg_color();
-        Terminal::reset_fg_color();
-    }
-
-    /**
-     * Draw bar for messages
-     */
-    fn draw_message_bar(&self) {
-        Terminal::clear_current_line();
-        let message: &StatusMessage = &self.status_message;
-        if Instant::now() - message.time < Duration::new(5, 0) {
-            let mut text: String = message.text.clone();
-            text.truncate(self.terminal.size().width as usize);
-            print!("{}", text);
-        }
-    }
-
 
     /**
      * Handle given command from :
@@ -495,6 +418,84 @@ impl Editor {
     }
 
     /**
+     * Clears the screen by writing an escape sequence to the terminal
+     */
+    fn refresh_screen(&self) -> Result<(), std::io::Error> {
+        Terminal::cursor_hide();
+        Terminal::cursor_position(&Position::default());
+        if self.should_quit {
+            Terminal::clear_screen();
+            println!("Goodbye.\r");
+        } else {
+            self.draw_rows();
+            self.draw_status_bar();
+            self.draw_message_bar();
+            Terminal::cursor_position(&Position {
+                x: self.cursor_position.x.saturating_sub(self.offset.x),
+                y: self.cursor_position.y.saturating_sub(self.offset.y),
+            });
+        }
+        Terminal::cursor_show();
+        Terminal::flush()
+    }
+
+    /**
+     * Draw bar for status data
+     */
+    fn draw_status_bar(&self) {
+        let mut status: String;
+        let width: usize = self.terminal.size().width as usize;
+        let modified_indicator = if self.document.is_dirty() {
+            " (modified) "
+        } else {
+            ""
+        };
+        let mut file_name: String = "[No Name]".to_string();
+        if let Some(name) = &self.document.file_name {
+            file_name = name.clone();
+            file_name.truncate(20);
+        }
+
+        status = format!(
+            "{} - {} lines{}- {:?}", 
+            file_name, 
+            self.document.len(),
+            modified_indicator,
+            self.mode,
+        );
+
+        let line_indicator: String = format!(
+            "{}/{}",
+            self.cursor_position.y.saturating_add(1),
+            self.document.len()
+        );
+        let len: usize = status.len() + line_indicator.len();
+        if width > len {
+            status.push_str(&" ".repeat(width - len));
+        }
+        status = format!("{}{}", status, line_indicator);
+
+        status.truncate(width);
+        Terminal::set_bg_color(STATUS_BG_COLOR);
+        Terminal::set_fg_color(STATUS_FG_COLOR);
+        println!("{}\r", status);
+        Terminal::reset_bg_color();
+        Terminal::reset_fg_color();
+    }
+
+    /**
+     * Draw bar for messages
+     */
+    fn draw_message_bar(&self) {
+        Terminal::clear_current_line();
+        let message: &StatusMessage = &self.status_message;
+        if Instant::now() - message.time < Duration::new(5, 0) {
+            let mut text: String = message.text.clone();
+            text.truncate(self.terminal.size().width as usize);
+            print!("{}", text);
+        }
+    }
+    /**
      * Displays the welcome message in the center of the screen
      */
     fn draw_welcome_message(&self) {
@@ -523,6 +524,7 @@ impl Editor {
      * Display the range of terminal rows according to offset y
      */
     fn draw_rows(&self) {
+        Terminal::set_bg_color(color::Rgb(29, 32, 33));
         let height: u16 = self.terminal.size().height;
         for terminal_row in 0..height {
             Terminal::clear_current_line();
@@ -534,6 +536,7 @@ impl Editor {
                 println!("~\r");
             }
         }
+        Terminal::reset_bg_color();
     }
 }
 

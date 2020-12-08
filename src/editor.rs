@@ -22,7 +22,7 @@ enum Mode {
 /**
  * Holds cursor x and y position for the current document
  */
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
@@ -201,7 +201,7 @@ impl Editor {
      * Handle given command from :
      */
     fn process_command(&mut self) {
-        let command: Option<String> = self.prompt(":").unwrap_or(None);
+        let command: Option<String> = self.prompt(":", |_, _, _| {}).unwrap_or(None);
         let command: &str = command.as_ref().map(String::as_ref).unwrap();
         match command {
             "w" => self.save(),
@@ -243,15 +243,7 @@ impl Editor {
                 self.mode = Mode::INSERT;
             }
             ':' => self.process_command(),
-            '/' => {
-                if let Some(query) = self.prompt("/").unwrap_or(None) {
-                    if let Some(position) = self.document.find(&query[..]) {
-                        self.cursor_position = position;
-                    } else {
-                        self.status_message = StatusMessage::from(format!("Pattern not found"));
-                    }
-                }
-            }
+            '/' => self.search(),
             _ => (),
         }
     }
@@ -309,7 +301,7 @@ impl Editor {
      */
     fn save(&mut self) {
         if self.document.file_name.is_none() {
-            let new_name: Option<String> = self.prompt("Save as: ").unwrap_or(None);
+            let new_name: Option<String> = self.prompt("Save as: ", |_, _, _| {}).unwrap_or(None);
             if new_name.is_none() {
                 self.status_message = StatusMessage::from("Save aborted.".to_string());
                 return;
@@ -327,12 +319,16 @@ impl Editor {
     /**
      * Prompt the user for an input
      */
-    fn prompt(&mut self, prompt: &str) -> Result<Option<String>, std::io::Error> {
+    fn prompt<C>(&mut self, prompt: &str, callback: C) -> Result<Option<String>, std::io::Error> 
+    where
+        C: Fn(&mut Self, Key, &String),
+    {
         let mut result: String = String::new();
         loop {
             self.status_message = StatusMessage::from(format!("{}{}", prompt, result));
             self.refresh_screen()?;
-            match Terminal::read_key()? {
+            let key: Key = Terminal::read_key()?;
+            match key {
                 Key::Backspace => {
                     if !result.is_empty() {
                         result.truncate(result.len() - 1);
@@ -350,6 +346,7 @@ impl Editor {
                 }
                 _ => (),
             }
+            callback(self, key, &result);
         }
         self.status_message = StatusMessage::from(String::new());
         if result.is_empty() {
@@ -377,6 +374,38 @@ impl Editor {
             offset.x = x;
         } else if x >= offset.x.saturating_add(width) {
             offset.x = x.saturating_sub(width).saturating_add(1);
+        }
+    }
+
+    /**
+     * Query the document incrementally
+     */
+    fn search(&mut self) {
+        let old_position: Position = self.cursor_position.clone();
+        if let Some(query) = self.prompt("/", |editor, key, query| {
+            let mut moved: bool = false;
+            match key {
+                Key::Char('n') => {
+                    editor.move_cursor(Key::Right);
+                    moved = true;
+                }
+                _ => (),
+            }
+            if let Some(position) = editor.document.find(&query, &editor.cursor_position) {
+                editor.cursor_position = position;
+                editor.scroll();
+            } else if moved {
+                editor.move_cursor(Key::Left);
+            }
+        }).unwrap_or(None) {
+            if let Some(position) = self.document.find(&query[..], &old_position) {
+                self.cursor_position = position;
+            } else {
+                self.status_message = StatusMessage::from(format!("Pattern not found: {}", query));
+            }
+        } else {
+            self.cursor_position = old_position;
+            self.scroll();
         }
     }
 

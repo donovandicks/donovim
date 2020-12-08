@@ -6,7 +6,7 @@
     clippy::wildcard_enum_match_arm,
     clippy::else_if_without_else,
 )]
-use hecto::Editor;
+use donovim::Editor;
 
 /**
  * Entry point

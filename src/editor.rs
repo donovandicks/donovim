@@ -254,16 +254,6 @@ impl Editor {
                     self.cursor_position = new_pos.clone();
                 };
             }
-            // 'N' => {
-            //     if self.search_results.len() > 0 {
-            //         self.cursor_position = self
-            //             .search_results
-            //             .iter()
-            //             .find(|&pos| pos.y < self.cursor_position.y)
-            //             .unwrap()
-            //             .clone();
-            //     }
-            // }
             ':' => self.process_command(),
             '/' => self.search(),
             _ => (),

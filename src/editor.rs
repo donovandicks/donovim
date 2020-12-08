@@ -236,6 +236,7 @@ impl Editor {
             'k' => self.move_cursor(Key::Up),
             'h' => self.move_cursor(Key::Left),
             'l' => self.move_cursor(Key::Right),
+            'w' => self.move_cursor(Key::Char('w')),
             'o' => {
                 self.move_cursor(Key::Down);
                 self.document.insert(&self.cursor_position, '\n');
@@ -383,6 +384,21 @@ impl Editor {
             0
         };        
         match key {
+            Key::Char('w') => {
+                let row: &Row = self.document.row(y).unwrap();
+                let new_idx: usize = row.peek_white(x);
+                if new_idx > 0 {
+                    x = new_idx;
+                } else {
+                    if let Some(row) = self.document.row(y + 1) {
+                        let new_idx: usize = row.peek_alpha(0);
+                        x = new_idx;
+                        y = y + 1;
+                    } else {
+                        ()
+                    }
+                }
+            }
             Key::Up => y = y.saturating_sub(1),
             Key::Down => {
                 if y < height {

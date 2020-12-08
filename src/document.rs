@@ -99,7 +99,7 @@ impl Document {
      * Search document for query
      */
     pub fn find(&self, query: &str, after: &Position) -> Option<Position> {
-        let mut x = after.x;
+        let mut x: usize = after.x;
         for (y, row) in self.rows.iter().enumerate().skip(after.y) {
             if let Some(x) = row.find(query, x) {
                 return Some(Position { x, y });
@@ -107,6 +107,16 @@ impl Document {
             x = 0;
         }
         None
+    }
+
+    pub fn find_all(&self, query: &str) -> Vec<Position> {
+        let mut results: Vec<Position> = Vec::new();
+        for (y, row) in self.rows.iter().enumerate() {
+            if let Some(x) = row.find(query, 0) {
+                results.push(Position { x, y });
+            }
+        }
+        results
     }
 
     /**

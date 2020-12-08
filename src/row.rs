@@ -92,6 +92,18 @@ impl Row {
         idx
     }
 
+    pub fn find(&self, query: &str) -> Option<usize> {
+        let matching_byte_index = self.string.find(query);
+        if let Some(matching_byte_index) = matching_byte_index {
+            for (grapheme_index, (byte_index, _)) in self.string[..].grapheme_indices(true).enumerate() {
+                if matching_byte_index == byte_index {
+                    return Some(grapheme_index);
+                }
+            }
+        }
+        None
+    }
+
     /**
      * Remove grapheme under the cursor
      */

@@ -67,7 +67,7 @@ impl Editor {
      */
     pub fn default() -> Self {
         let args: Vec<String> = env::args().collect();
-        let mut initial_status: String = String::from("HELP: :w = Save | :q = Quit");
+        let mut initial_status: String = String::from("HELP: :w = Save | :q = Quit | / = Search");
         let document: Document = if args.len() > 1 {
             let file_name: &String = &args[1];
             let doc: Result<Document, std::io::Error> = Document::open(&file_name);
@@ -243,6 +243,15 @@ impl Editor {
                 self.mode = Mode::INSERT;
             }
             ':' => self.process_command(),
+            '/' => {
+                if let Some(query) = self.prompt("/").unwrap_or(None) {
+                    if let Some(position) = self.document.find(&query[..]) {
+                        self.cursor_position = position;
+                    } else {
+                        self.status_message = StatusMessage::from(format!("Pattern not found"));
+                    }
+                }
+            }
             _ => (),
         }
     }

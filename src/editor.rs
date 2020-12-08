@@ -59,6 +59,7 @@ pub struct Editor {
     document: Document,
     status_message: StatusMessage,
     mode: Mode,
+    search_results: Vec<Position>,
 }
 
 impl Editor {
@@ -88,6 +89,7 @@ impl Editor {
             offset: Position::default(),
             status_message: StatusMessage::from(initial_status),
             mode: Mode::NORMAL,
+            search_results: vec!(),
         }
     }
 
@@ -217,7 +219,7 @@ impl Editor {
             "wq" => {
                 self.save();
                 self.should_quit = true;
-            }
+            },
             _ => self.status_message = StatusMessage::from(format!("Unrecognized Command: {:?}", command)),
         }
     }
@@ -242,6 +244,26 @@ impl Editor {
                 self.document.insert(&self.cursor_position, '\n');
                 self.mode = Mode::INSERT;
             }
+            'n' => {
+                if self.search_results.len() > 0 {
+                    self.cursor_position = self
+                        .search_results
+                        .iter()
+                        .find(|&pos| pos.y > self.cursor_position.y)
+                        .unwrap()
+                        .clone();
+                }
+            }
+            // 'N' => {
+            //     if self.search_results.len() > 0 {
+            //         self.cursor_position = self
+            //             .search_results
+            //             .iter()
+            //             .find(|&pos| pos.y < self.cursor_position.y)
+            //             .unwrap()
+            //             .clone();
+            //     }
+            // }
             ':' => self.process_command(),
             '/' => self.search(),
             _ => (),
@@ -382,24 +404,16 @@ impl Editor {
      */
     fn search(&mut self) {
         let old_position: Position = self.cursor_position.clone();
-        if let Some(query) = self.prompt("/", |editor, key, query| {
-            let mut moved: bool = false;
-            match key {
-                Key::Right => {
-                    editor.move_cursor(Key::Right);
-                    moved = true;
-                }
-                _ => (),
-            }
+        if let Some(query) = self.prompt("/", |editor, _, query| {
             if let Some(position) = editor.document.find(&query, &editor.cursor_position) {
                 editor.cursor_position = position;
                 editor.scroll();
-            } else if moved {
-                editor.move_cursor(Key::Left);
-            }
-        }).unwrap_or(None) {
+            } 
+        })
+        .unwrap_or(None) {
             if let Some(position) = self.document.find(&query[..], &old_position) {
                 self.cursor_position = position;
+                self.search_results = self.document.find_all(&query); 
             } else {
                 self.status_message = StatusMessage::from(format!("Pattern not found: {}", query));
             }

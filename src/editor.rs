@@ -60,6 +60,7 @@ pub struct Editor {
     status_message: StatusMessage,
     mode: Mode,
     search_results: Vec<Position>,
+    highlighted_word: Option<String>
 }
 
 impl Editor {
@@ -90,6 +91,7 @@ impl Editor {
             status_message: StatusMessage::from(initial_status),
             mode: Mode::NORMAL,
             search_results: vec!(),
+            highlighted_word: None,
         }
     }
 
@@ -322,6 +324,7 @@ impl Editor {
                 editor.cursor_position = position;
                 editor.scroll();
             } 
+            editor.highlighted_word = Some(query.to_string());
         })
         .unwrap_or(None) {
             if let Some(position) = self.document.find(&query[..], &old_position) {
@@ -334,6 +337,7 @@ impl Editor {
             self.cursor_position = old_position;
             self.scroll();
         }
+        self.highlighted_word = None;
     }
 
     /**
@@ -420,13 +424,17 @@ impl Editor {
     /**
      * Clears the screen by writing an escape sequence to the terminal
      */
-    fn refresh_screen(&self) -> Result<(), std::io::Error> {
+    fn refresh_screen(&mut self) -> Result<(), std::io::Error> {
         Terminal::cursor_hide();
         Terminal::cursor_position(&Position::default());
         if self.should_quit {
             Terminal::clear_screen();
             println!("Goodbye.\r");
         } else {
+            self.document.highlight(
+                &self.highlighted_word,
+                Some(self.offset.y.saturating_add(self.terminal.size().height as usize)),
+            );
             self.draw_rows();
             self.draw_status_bar();
             self.draw_message_bar();
@@ -465,7 +473,8 @@ impl Editor {
         );
 
         let line_indicator: String = format!(
-            "{}/{}",
+            "{} | {}/{}",
+            self.document.file_type(),
             self.cursor_position.y.saturating_add(1),
             self.document.len()
         );

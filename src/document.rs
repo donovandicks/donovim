@@ -43,6 +43,10 @@ impl Document {
     }
 
     /// Write the current `Document` to disk
+    ///
+    /// # Returns
+    ///
+    /// - Unit or any Error encountered during the save operation
     pub fn save(&mut self) -> Result<(), Error> {
         if let Some(file_name) = &self.file_name {
             let mut file = fs::File::create(file_name)?;
@@ -101,6 +105,10 @@ impl Document {
     }
 
     /// Remove the character under the cursor
+    ///
+    /// # Args
+    ///
+    /// - `at`: The current cursor position
     pub fn delete(&mut self, at: &Position) {
         let len: usize = self.len();
 
@@ -143,6 +151,15 @@ impl Document {
         None
     }
 
+    /// Find all matches for a query
+    ///
+    /// # Args
+    ///
+    /// - `query`: The text to search for
+    ///
+    /// # Returns
+    ///
+    /// - A vector of all positions that match the query
     pub fn find_all(&self, query: &str) -> Vec<Position> {
         // TODO: Refactor
         let mut results = Vec::new();
@@ -156,22 +173,36 @@ impl Document {
         results
     }
 
-    fn parse_until(&mut self, until: Option<usize>) -> usize {
-        match until {
-            Some(u) => {
-                if u.saturating_add(1) < self.rows.len() {
-                    u.saturating_add(1)
-                } else {
-                    self.rows.len()
-                }
-            }
-            None => self.rows.len(),
+    /// Checks if until is within the bounds of the document
+    ///
+    /// # Args
+    ///
+    /// - `until`: The number of rows
+    ///
+    /// # Returns
+    ///
+    /// - `until` or the length of the rows on the document
+    fn unwrap_until(&mut self, until: usize) -> usize {
+        if until <= self.rows.len() {
+            until
+        } else {
+            self.rows.len()
         }
     }
 
+    /// Highlight the document
+    ///
+    /// # Args
+    ///
+    /// - `word`:
+    /// - `until`: The row to highlight to, if `None` will highlight whole document
     pub fn highlight(&mut self, word: &Option<String>, until: Option<usize>) {
         let mut start_with_comment: bool = false;
-        let until = self.parse_until(until);
+        let until = if let Some(until) = until {
+            self.unwrap_until(until)
+        } else {
+            self.rows.len()
+        };
 
         for row in &mut self.rows[..until] {
             start_with_comment = row.highlight(
@@ -189,21 +220,43 @@ impl Document {
         }
     }
 
-    /**
-     * Get the Row at the given index
-     */
+    /// Get the `Row` at the given index
+    ///
+    /// # Args
+    ///
+    /// - `index`: The row number to retrieve
+    ///
+    /// # Returns
+    ///
+    /// - The row if one exists at `index`
     pub fn row(&self, index: usize) -> Option<&Row> {
         self.rows.get(index)
     }
 
+    /// Checks if the document is empty (has no rows)
+    ///
+    /// # Returns
+    ///
+    /// - Whether the document is empty
     pub fn is_empty(&self) -> bool {
         self.rows.is_empty()
     }
 
+    /// Retrieves the number of rows on the document
+    ///
+    /// # Returns
+    ///
+    /// - The number of rows on the document
     pub fn len(&self) -> usize {
         self.rows.len()
     }
 
+    /// Checks if the document is in a `dirty` state, meaning it has been modified
+    /// since last save or load
+    ///
+    /// # Returns
+    ///
+    /// - Whether the document is dirty
     pub fn is_dirty(&self) -> bool {
         self.dirty
     }

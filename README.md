@@ -5,8 +5,8 @@ My personal Vim clone
 ## Roadmap
 
 - [ ] Major refactor
-- [ ] Fix handling of `\t` char
+- [X] Fix handling of `\t` char
 - [ ] Support deletion in command mode
 - [ ] Support replace
-- [ ] Fix existing jump navigation
+- [X] Fix existing jump navigation (`w`)
 - [ ] Support new jump navigation (backwards and `f, t, e` etc.)

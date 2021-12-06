@@ -10,36 +10,32 @@ const STATUS_FG_COLOR: color::Rgb = color::Rgb(239, 239, 239);
 const STATUS_BG_COLOR: color::Rgb = color::Rgb(120, 120, 120);
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/**
- * List of Editor Modes
- */
+/// List of Editor Modes
 #[derive(PartialEq, Debug)]
 enum Mode {
+    /// `Normal` mode treats keypresses as commands and does not intepret them
+    /// as text to be displayed in the terminal
     Normal,
+
+    /// `Insert` mode treats keypresses as-is, meaning they are interpreted as
+    /// text and displayed in the terminal
     Insert,
 }
 
-/**
- * Holds cursor x and y position for the current document
- */
+/// Holds cursor positions
 #[derive(Default, Clone)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
 }
 
-/**
- * Holds message for the current editor status
- */
+/// Holds message for the current editor status
 struct StatusMessage {
     text: String,
     time: Instant,
 }
 
 impl StatusMessage {
-    /**
-     * Implement fromString for StatusMessage
-     */
     fn from(message: String) -> Self {
         Self {
             time: Instant::now(),
@@ -48,25 +44,40 @@ impl StatusMessage {
     }
 }
 
-/**
- * Holds values for the current editor instance
- */
+/// Maintains editor state
 pub struct Editor {
+    /// Whether the editor should quit
     should_quit: bool,
+
+    /// The terminal instance that the editor appears in
     terminal: Terminal,
+
+    /// The current position of the cursor
     cursor_position: Position,
+
+    /// The current offset
     offset: Position,
+
+    /// The current document being worked on
     document: Document,
+
+    /// The current status of the editor
     status_message: StatusMessage,
+
+    /// The current mode of the editor
     mode: Mode,
+
+    /// The number of whitespaces to replace `tab` characters with
+    tab_size: usize,
+
+    /// A list of positions matching a query
     search_results: Vec<Position>,
+
+    /// Current highlighted word from a search
     highlighted_word: Option<String>,
 }
 
 impl Editor {
-    /**
-     * Initialize an Editor with Default Settings
-     */
     pub fn default() -> Self {
         let args: Vec<String> = env::args().collect();
         let mut initial_status = String::from("HELP: :w = Save | :q = Quit | / = Search");
@@ -91,23 +102,20 @@ impl Editor {
             offset: Position::default(),
             status_message: StatusMessage::from(initial_status),
             mode: Mode::Normal,
+            tab_size: 4,
             search_results: vec![],
             highlighted_word: None,
         }
     }
 
-    /**
-     * Run the Editor
-     * Loops forever until error or quit signal received.
-     * Processes key presses.
-     *
-     * # Panics
-     * - On error when calling refresh_screen
-     * - On error when calling process_keypress
-     *
-     * # Exits
-     * - On CTRL-Q keypress
-     */
+    /// Run the `Editor` until an error is encountered or a quit signal is received
+    ///
+    /// # Exits
+    /// - On `ctrl-q` keypress
+    //
+    /// # Panics
+    /// - On error when refreshing the screen
+    /// - On error when processing a keypress
     pub fn run(&mut self) {
         loop {
             if let Err(err) = self.refresh_screen() {
@@ -125,38 +133,42 @@ impl Editor {
         }
     }
 
-    /**
-     * Handle given command from :
-     */
+    /// Handle given command from a `Normal` mode prompt
     fn process_command(&mut self) {
-        let command: Option<String> = self.prompt(":", |_, _, _| {}).unwrap_or(None);
-        let command: &str = command.as_ref().map(String::as_ref).unwrap();
-        match command {
-            "w" => self.save(),
-            "q" => {
-                if self.document.is_dirty() {
-                    self.status_message = StatusMessage::from(
-                        "Document has unsaved changes! Add ! to override.".to_string(),
-                    );
-                    return;
+        let input = self.prompt(":", |_, _, _| {}).unwrap_or(None);
+
+        if let Some(command) = input {
+            match command.as_ref() {
+                "w" => self.save(),
+                "q" => {
+                    if self.document.is_dirty() {
+                        self.status_message = StatusMessage::from(
+                            "Document has unsaved changes! Add ! to override.".to_string(),
+                        );
+                        return;
+                    }
+                    self.should_quit = true;
                 }
-                self.should_quit = true;
+                "q!" => self.should_quit = true,
+                "wq" => {
+                    self.save();
+                    self.should_quit = true;
+                }
+                _ => {
+                    self.status_message =
+                        StatusMessage::from(format!("Unrecognized Command: {:?}", command))
+                }
             }
-            "q!" => self.should_quit = true,
-            "wq" => {
-                self.save();
-                self.should_quit = true;
-            }
-            _ => {
-                self.status_message =
-                    StatusMessage::from(format!("Unrecognized Command: {:?}", command))
-            }
+        } else {
+            self.status_message = StatusMessage::from("No command passed".to_string())
         }
     }
 
-    /**
-     * Handles Keypresses in Normal mode
-     */
+    /// Handles Keypresses in Normal mode
+    ///
+    /// # Args
+    ///
+    /// - `c`: The character received from the user
     fn process_normal_keypress(&mut self, c: char) {
         match c {
             'a' => {
@@ -198,22 +210,36 @@ impl Editor {
         }
     }
 
-    /**
-     * Handles Keypresses in Insert mode
-     */
+    /// Handles Keypresses in Insert mode
+    ///
+    /// # Args
+    ///
+    /// - `c`: The character to process
     fn process_insert_keypress(&mut self, c: char) {
-        self.document.insert(&self.cursor_position, c);
+        if c == '\t' {
+            // TODO: Handle this better
+            for _ in 0..self.tab_size {
+                self.document.insert(&self.cursor_position, ' ')
+            }
+        } else {
+            self.document.insert(&self.cursor_position, c);
+        }
+
         if c == '\n' {
             self.move_cursor(Key::Down);
+        } else if c == '\t' {
+            self.move_cursor(Key::Char(c))
         } else {
             self.move_cursor(Key::Right);
         }
     }
 
-    /**
-     * Reads a key, propogates error if one is returned
-     * Sets should_quit if CTRL-Q
-     */
+    /// Processes a keypress from the terminal, handling the key depending on the
+    /// current editor mode
+    ///
+    /// # Returns
+    ///
+    /// - Unit or any Error encountered processing the key
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
         let pressed_key: Key = Terminal::read_key()?;
         match pressed_key {
@@ -246,16 +272,16 @@ impl Editor {
         Ok(())
     }
 
-    /**
-     * Save the document. Abort on empty prompt or erorr
-     */
+    /// Save the document. Abort on empty prompt or erorr
     fn save(&mut self) {
         if self.document.file_name.is_none() {
             let new_name: Option<String> = self.prompt("Save as: ", |_, _, _| {}).unwrap_or(None);
+
             if new_name.is_none() {
                 self.status_message = StatusMessage::from("Save aborted.".to_string());
                 return;
             }
+
             self.document.file_name = new_name;
         }
 
@@ -266,17 +292,26 @@ impl Editor {
         }
     }
 
-    /**
-     * Prompt the user for an input
-     */
+    /// Prompt the user for an input
+    ///
+    /// # Args
+    ///
+    /// - `prompt`: The prompt to the user
+    /// - `callback`: A function to be called on a keypress
+    ///
+    /// # Returns
+    ///
+    /// - A
     fn prompt<C>(&mut self, prompt: &str, callback: C) -> Result<Option<String>, std::io::Error>
     where
         C: Fn(&mut Self, Key, &String),
     {
         let mut result: String = String::new();
+
         loop {
             self.status_message = StatusMessage::from(format!("{}{}", prompt, result));
             self.refresh_screen()?;
+
             let key: Key = Terminal::read_key()?;
             match key {
                 Key::Backspace => {
@@ -284,12 +319,15 @@ impl Editor {
                         result.truncate(result.len() - 1);
                     }
                 }
+
                 Key::Char('\n') => break,
+
                 Key::Char(c) => {
                     if !c.is_control() {
                         result.push(c);
                     }
                 }
+
                 Key::Esc => {
                     result.truncate(0);
                     break;
@@ -298,10 +336,13 @@ impl Editor {
             }
             callback(self, key, &result);
         }
+
         self.status_message = StatusMessage::from(String::new());
+
         if result.is_empty() {
             return Ok(None);
         }
+
         Ok(Some(result))
     }
 
@@ -355,37 +396,57 @@ impl Editor {
         self.highlighted_word = None;
     }
 
-    /**
-     * Moves the cursor based on the given key
-     */
+    /// Moves the cursor based on the given key
+    ///
+    /// # Args
+    ///
+    /// - `key`: The key entered by the user
     fn move_cursor(&mut self, key: Key) {
-        let terminal_height: usize = self.terminal.size().height as usize;
-        let Position { mut y, mut x } = self.cursor_position;
-        let height: usize = self.document.len();
-        let mut width: usize = if let Some(row) = self.document.row(y) {
+        let terminal_height = self.terminal.size().height as usize;
+        let Position { mut x, mut y } = self.cursor_position;
+
+        let height = self.document.len();
+        let mut width = if let Some(row) = self.document.row(y) {
             row.len()
         } else {
             0
         };
+
         match key {
             Key::Char('w') => {
-                let row: &Row = self.document.row(y).unwrap();
-                let new_idx: usize = row.peek_white(x);
+                let row = self.document.row(y).unwrap();
+                let new_idx = row.peek_white(x);
+
                 if new_idx > 0 {
                     x = new_idx;
                 } else if let Some(row) = self.document.row(y + 1) {
-                    let new_idx: usize = row.peek_alpha(0);
+                    let new_idx: usize = row.peek_alphanumeric(0);
                     x = new_idx;
                     y += 1;
                 }
             }
+
+            // TODO: Fix
+            Key::Char('\t') => {
+                if x.saturating_add(self.tab_size) < width {
+                    x = x.saturating_add(self.tab_size)
+                }
+            }
+
             Key::Up => y = y.saturating_sub(1),
             Key::Down => {
                 if y < height {
                     y = y.saturating_add(1)
                 }
             }
+
             Key::Left => x = x.saturating_sub(1),
+            Key::Right => {
+                if x < width {
+                    x = x.saturating_add(1)
+                }
+            }
+
             Key::Backspace => {
                 if x > 0 {
                     x -= 1;
@@ -398,11 +459,7 @@ impl Editor {
                     }
                 }
             }
-            Key::Right => {
-                if x < width {
-                    x = x.saturating_add(1)
-                }
-            }
+
             Key::PageUp => {
                 y = if y > terminal_height {
                     y - terminal_height
@@ -417,15 +474,18 @@ impl Editor {
                     height
                 }
             }
+
             Key::Home => x = 0,
             Key::End => x = width,
             _ => (),
         }
+
         width = if let Some(row) = self.document.row(y) {
             row.len()
         } else {
             0
         };
+
         if x > width {
             x = width;
         }

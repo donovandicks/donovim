@@ -93,11 +93,13 @@ impl Row {
             if index < at {
                 continue;
             }
+
             if !c.is_alphanumeric() {
                 idx = index + 1;
                 break;
             }
         }
+
         idx
     }
 
@@ -107,11 +109,30 @@ impl Row {
             if index < at {
                 continue;
             }
+
             if c.is_alphabetic() {
                 idx = index;
                 break;
             }
         }
+
+        idx
+    }
+
+    pub fn peek_alphanumeric(&self, at: usize) -> usize {
+        let mut idx: usize = 0;
+
+        for (index, c) in self.string[..].chars().enumerate() {
+            if index < at {
+                continue;
+            }
+
+            if c.is_alphanumeric() {
+                idx = index;
+                break;
+            }
+        }
+
         idx
     }
 

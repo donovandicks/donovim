@@ -1,7 +1,7 @@
+use crate::{filetype::HighlightingOptions, highlighting};
 use std::cmp;
-use unicode_segmentation::UnicodeSegmentation;
 use termion::color;
-use crate::{highlighting, filetype::HighlightingOptions};
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Default)]
 pub struct Row {
@@ -42,11 +42,13 @@ impl Row {
             .take(end - start)
         {
             if let Some(c) = grapheme.chars().next() {
-                let highlighting_type: &highlighting::Type = 
-                    self.highlighting.get(index).unwrap_or(&highlighting::Type::None);
+                let highlighting_type: &highlighting::Type = self
+                    .highlighting
+                    .get(index)
+                    .unwrap_or(&highlighting::Type::None);
                 if highlighting_type != current_highlight {
                     current_highlight = highlighting_type;
-                    let start_highlight = 
+                    let start_highlight =
                         format!("{}", termion::color::Fg(highlighting_type.to_color()));
                     result.push_str(&start_highlight[..]);
                 }
@@ -94,7 +96,7 @@ impl Row {
             if !c.is_alphanumeric() {
                 idx = index + 1;
                 break;
-            } 
+            }
         }
         idx
     }
@@ -120,7 +122,9 @@ impl Row {
         let substring: String = self.string[..].graphemes(true).skip(after).collect();
         let matching_byte_index: Option<usize> = self.string.find(query);
         if let Some(matching_byte_index) = matching_byte_index {
-            for (grapheme_index, (byte_index, _)) in substring[..].grapheme_indices(true).enumerate() {
+            for (grapheme_index, (byte_index, _)) in
+                substring[..].grapheme_indices(true).enumerate()
+            {
                 if matching_byte_index == byte_index {
                     return Some(after + grapheme_index);
                 }
@@ -135,7 +139,7 @@ impl Row {
     pub fn delete(&mut self, at: usize) {
         if at >= self.len() {
             return;
-        } 
+        }
         let mut result: String = String::new();
         let mut length: usize = 0;
         for (index, grapheme) in self.string[..].graphemes(true).enumerate() {
@@ -184,7 +188,8 @@ impl Row {
             }
             let mut index: usize = 0;
             while let Some(search_match) = self.find(word, index) {
-                if let Some(next_index) = search_match.checked_add(word[..].graphemes(true).count()) {
+                if let Some(next_index) = search_match.checked_add(word[..].graphemes(true).count())
+                {
                     for i in index.saturating_add(search_match)..next_index {
                         self.highlighting[i] = highlighting::Type::Match;
                     }
@@ -197,10 +202,10 @@ impl Row {
     }
 
     fn highlight_char(
-        &mut self, 
-        index: &mut usize, 
-        opts: &HighlightingOptions, 
-        c: char, 
+        &mut self,
+        index: &mut usize,
+        opts: &HighlightingOptions,
+        c: char,
         chars: &[char],
     ) -> bool {
         if opts.characters() && c == '\'' {
@@ -225,10 +230,10 @@ impl Row {
     }
 
     fn highlight_comment(
-        &mut self, 
-        index: &mut usize, 
-        opts: &HighlightingOptions, 
-        c: char, 
+        &mut self,
+        index: &mut usize,
+        opts: &HighlightingOptions,
+        c: char,
         chars: &[char],
     ) -> bool {
         if opts.comments() && c == '/' && *index < chars.len() {
@@ -255,12 +260,13 @@ impl Row {
         if opts.comments() && c == '/' && *index < chars.len() {
             if let Some(next_char) = chars.get(index.saturating_add(1)) {
                 if *next_char == '*' {
-                    let closing_index = if let Some(closing_index) = self.string[*index + 2..].find("*/") {
-                        *index + closing_index + 4
-                    } else {
-                        chars.len()
-                    };
-                
+                    let closing_index =
+                        if let Some(closing_index) = self.string[*index + 2..].find("*/") {
+                            *index + closing_index + 4
+                        } else {
+                            chars.len()
+                        };
+
                     for _ in *index..closing_index {
                         self.highlighting.push(highlighting::Type::MultilineComment);
                         *index += 1;
@@ -278,7 +284,7 @@ impl Row {
         index: &mut usize,
         opts: &HighlightingOptions,
         c: char,
-        chars: &[char]
+        chars: &[char],
     ) -> bool {
         if opts.strings() && c == '"' {
             loop {
@@ -381,11 +387,11 @@ impl Row {
                 }
             }
 
-            if self.highlight_str(index, &word, chars, hl_type) {
+            if self.highlight_str(index, word, chars, hl_type) {
                 return true;
             }
         }
-        
+
         false
     }
 
@@ -395,7 +401,12 @@ impl Row {
         opts: &HighlightingOptions,
         chars: &[char],
     ) -> bool {
-        self.highlight_keywords(index, chars, opts.primary_keywords(), highlighting::Type::PrimaryKeywords)
+        self.highlight_keywords(
+            index,
+            chars,
+            opts.primary_keywords(),
+            highlighting::Type::PrimaryKeywords,
+        )
     }
 
     fn highlight_secondary_keywords(
@@ -404,12 +415,17 @@ impl Row {
         opts: &HighlightingOptions,
         chars: &[char],
     ) -> bool {
-        self.highlight_keywords(index, chars, opts.secondary_keywords(), highlighting::Type::SecondaryKeywords)
+        self.highlight_keywords(
+            index,
+            chars,
+            opts.secondary_keywords(),
+            highlighting::Type::SecondaryKeywords,
+        )
     }
 
     pub fn highlight(
-        &mut self, 
-        opts: &HighlightingOptions, 
+        &mut self,
+        opts: &HighlightingOptions,
         word: &Option<String>,
         start_with_comment: bool,
     ) -> bool {
@@ -437,7 +453,7 @@ impl Row {
             } else {
                 chars.len()
             };
-            
+
             for _ in 0..closing_index {
                 self.highlighting.push(highlighting::Type::MultilineComment);
             }
@@ -446,15 +462,15 @@ impl Row {
         }
 
         while let Some(c) = chars.get(index) {
-            if self.highlight_multiline_comment(&mut index, &opts, *c, &chars) {
+            if self.highlight_multiline_comment(&mut index, opts, *c, &chars) {
                 in_ml_comment = true;
                 continue;
             }
 
             if self.highlight_char(&mut index, opts, *c, &chars)
                 || self.highlight_comment(&mut index, opts, *c, &chars)
-                || self.highlight_primary_keywords(&mut index, &opts, &chars)
-                || self.highlight_secondary_keywords(&mut index, &opts, &chars)
+                || self.highlight_primary_keywords(&mut index, opts, &chars)
+                || self.highlight_secondary_keywords(&mut index, opts, &chars)
                 || self.highlight_string(&mut index, opts, *c, &chars)
                 || self.highlight_number(&mut index, opts, *c, &chars)
             {
@@ -486,7 +502,6 @@ impl Row {
         self.string.as_bytes()
     }
 
-
     pub fn len(&self) -> usize {
         self.len
     }
@@ -494,7 +509,6 @@ impl Row {
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
-
 }
 
 fn is_separator(c: char) -> bool {

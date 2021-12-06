@@ -15,8 +15,8 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
  */
 #[derive(PartialEq, Debug)]
 enum Mode {
-    NORMAL,
-    INSERT,
+    Normal,
+    Insert,
 }
 
 /**
@@ -60,7 +60,7 @@ pub struct Editor {
     status_message: StatusMessage,
     mode: Mode,
     search_results: Vec<Position>,
-    highlighted_word: Option<String>
+    highlighted_word: Option<String>,
 }
 
 impl Editor {
@@ -69,12 +69,12 @@ impl Editor {
      */
     pub fn default() -> Self {
         let args: Vec<String> = env::args().collect();
-        let mut initial_status: String = String::from("HELP: :w = Save | :q = Quit | / = Search");
-        let document: Document = if args.len() > 1 {
-            let file_name: &String = &args[1];
-            let doc: Result<Document, std::io::Error> = Document::open(&file_name);
-            if doc.is_ok() {
-                doc.unwrap()
+        let mut initial_status = String::from("HELP: :w = Save | :q = Quit | / = Search");
+
+        let document = if args.len() > 1 {
+            let file_name = &args[1];
+            if let Ok(doc) = Document::open(file_name) {
+                doc
             } else {
                 initial_status = format!("ERR: Could not open file: {}", file_name);
                 Document::default()
@@ -82,6 +82,7 @@ impl Editor {
         } else {
             Document::default()
         };
+
         Self {
             should_quit: false,
             terminal: Terminal::default().expect("Failed to initialize terminal"),
@@ -89,8 +90,8 @@ impl Editor {
             cursor_position: Position::default(),
             offset: Position::default(),
             status_message: StatusMessage::from(initial_status),
-            mode: Mode::NORMAL,
-            search_results: vec!(),
+            mode: Mode::Normal,
+            search_results: vec![],
             highlighted_word: None,
         }
     }
@@ -135,7 +136,8 @@ impl Editor {
             "q" => {
                 if self.document.is_dirty() {
                     self.status_message = StatusMessage::from(
-                        "Document has unsaved changes! Add ! to override.".to_string());
+                        "Document has unsaved changes! Add ! to override.".to_string(),
+                    );
                     return;
                 }
                 self.should_quit = true;
@@ -144,21 +146,24 @@ impl Editor {
             "wq" => {
                 self.save();
                 self.should_quit = true;
-            },
-            _ => self.status_message = StatusMessage::from(format!("Unrecognized Command: {:?}", command)),
+            }
+            _ => {
+                self.status_message =
+                    StatusMessage::from(format!("Unrecognized Command: {:?}", command))
+            }
         }
     }
 
     /**
-     * Handles Keypresses in NORMAL mode
+     * Handles Keypresses in Normal mode
      */
     fn process_normal_keypress(&mut self, c: char) {
         match c {
             'a' => {
                 self.move_cursor(Key::Right);
-                self.mode = Mode::INSERT;
+                self.mode = Mode::Insert;
             }
-            'i' => self.mode = Mode::INSERT,
+            'i' => self.mode = Mode::Insert,
             'j' => self.move_cursor(Key::Down),
             'k' => self.move_cursor(Key::Up),
             'h' => self.move_cursor(Key::Left),
@@ -167,15 +172,23 @@ impl Editor {
             'o' => {
                 self.move_cursor(Key::Down);
                 self.document.insert(&self.cursor_position, '\n');
-                self.mode = Mode::INSERT;
+                self.mode = Mode::Insert;
             }
             'n' => {
-                if let Some(new_pos) = self.search_results.iter().find(|&pos| pos.y > self.cursor_position.y) {
+                if let Some(new_pos) = self
+                    .search_results
+                    .iter()
+                    .find(|&pos| pos.y > self.cursor_position.y)
+                {
                     self.cursor_position = new_pos.clone();
                 };
             }
             'N' => {
-                if let Some(new_pos) = self.search_results.iter().rfind(|&pos| pos.y < self.cursor_position.y) {
+                if let Some(new_pos) = self
+                    .search_results
+                    .iter()
+                    .rfind(|&pos| pos.y < self.cursor_position.y)
+                {
                     self.cursor_position = new_pos.clone();
                 };
             }
@@ -186,7 +199,7 @@ impl Editor {
     }
 
     /**
-     * Handles Keypresses in INSERT mode
+     * Handles Keypresses in Insert mode
      */
     fn process_insert_keypress(&mut self, c: char) {
         self.document.insert(&self.cursor_position, c);
@@ -204,9 +217,9 @@ impl Editor {
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
         let pressed_key: Key = Terminal::read_key()?;
         match pressed_key {
-            Key::Esc => self.mode = Mode::NORMAL,
+            Key::Esc => self.mode = Mode::Normal,
             Key::Char(c) => {
-                if self.mode == Mode::INSERT {
+                if self.mode == Mode::Insert {
                     self.process_insert_keypress(c);
                 } else {
                     self.process_normal_keypress(c);
@@ -256,7 +269,7 @@ impl Editor {
     /**
      * Prompt the user for an input
      */
-    fn prompt<C>(&mut self, prompt: &str, callback: C) -> Result<Option<String>, std::io::Error> 
+    fn prompt<C>(&mut self, prompt: &str, callback: C) -> Result<Option<String>, std::io::Error>
     where
         C: Fn(&mut Self, Key, &String),
     {
@@ -269,7 +282,7 @@ impl Editor {
                 Key::Backspace => {
                     if !result.is_empty() {
                         result.truncate(result.len() - 1);
-                    } 
+                    }
                 }
                 Key::Char('\n') => break,
                 Key::Char(c) => {
@@ -319,17 +332,19 @@ impl Editor {
      */
     fn search(&mut self) {
         let old_position: Position = self.cursor_position.clone();
-        if let Some(query) = self.prompt("/", |editor, _, query| {
-            if let Some(position) = editor.document.find(&query, &editor.cursor_position) {
-                editor.cursor_position = position;
-                editor.scroll();
-            } 
-            editor.highlighted_word = Some(query.to_string());
-        })
-        .unwrap_or(None) {
+        if let Some(query) = self
+            .prompt("/", |editor, _, query| {
+                if let Some(position) = editor.document.find(query, &editor.cursor_position) {
+                    editor.cursor_position = position;
+                    editor.scroll();
+                }
+                editor.highlighted_word = Some(query.to_string());
+            })
+            .unwrap_or(None)
+        {
             if let Some(position) = self.document.find(&query[..], &old_position) {
                 self.cursor_position = position;
-                self.search_results = self.document.find_all(&query); 
+                self.search_results = self.document.find_all(&query);
             } else {
                 self.status_message = StatusMessage::from(format!("Pattern not found: {}", query));
             }
@@ -351,21 +366,17 @@ impl Editor {
             row.len()
         } else {
             0
-        };        
+        };
         match key {
             Key::Char('w') => {
                 let row: &Row = self.document.row(y).unwrap();
                 let new_idx: usize = row.peek_white(x);
                 if new_idx > 0 {
                     x = new_idx;
-                } else {
-                    if let Some(row) = self.document.row(y + 1) {
-                        let new_idx: usize = row.peek_alpha(0);
-                        x = new_idx;
-                        y = y + 1;
-                    } else {
-                        ()
-                    }
+                } else if let Some(row) = self.document.row(y + 1) {
+                    let new_idx: usize = row.peek_alpha(0);
+                    x = new_idx;
+                    y += 1;
                 }
             }
             Key::Up => y = y.saturating_sub(1),
@@ -433,7 +444,11 @@ impl Editor {
         } else {
             self.document.highlight(
                 &self.highlighted_word,
-                Some(self.offset.y.saturating_add(self.terminal.size().height as usize)),
+                Some(
+                    self.offset
+                        .y
+                        .saturating_add(self.terminal.size().height as usize),
+                ),
             );
             self.draw_rows();
             self.draw_status_bar();
@@ -465,8 +480,8 @@ impl Editor {
         }
 
         status = format!(
-            "{} - {} lines{}- {:?}", 
-            file_name, 
+            "{} - {} lines{}- {:?}",
+            file_name,
             self.document.len(),
             modified_indicator,
             self.mode,
@@ -554,5 +569,5 @@ impl Editor {
  */
 fn error(e: std::io::Error) -> ! {
     Terminal::clear_screen();
-    panic!(e);
+    panic!("{}", e);
 }

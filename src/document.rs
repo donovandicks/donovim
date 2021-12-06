@@ -1,6 +1,6 @@
 use crate::{FileType, Position, Row};
 use std::fs;
-use std::io::{ Error, Write };
+use std::io::{Error, Write};
 
 #[derive(Default)]
 pub struct Document {
@@ -77,7 +77,7 @@ impl Document {
         if at.y == self.len() {
             self.rows.push(Row::default());
             return;
-        } 
+        }
         let current_row: &mut Row = &mut self.rows[at.y];
         let new_row: Row = current_row.split(at.x);
         self.rows.insert(at.y + 1, new_row);
@@ -141,7 +141,7 @@ impl Document {
 
         for row in &mut self.rows[..until] {
             start_with_comment = row.highlight(
-                &self.file_type.highlighting_options(),
+                self.file_type.highlighting_options(),
                 word,
                 start_with_comment,
             );
